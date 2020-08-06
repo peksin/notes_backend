@@ -4,6 +4,7 @@ const { response } = require('express')
 const cors = require('cors')
 const app = express()
 const Note = require('./models/note')
+const { update } = require('./models/note')
 
 const requestLogger = (request, response, next) => {
     console.log(`Method:`, request.method)
@@ -57,6 +58,7 @@ const generateId = () => {
  * Routet tanne
  *=========================*/
 
+ // add one note
 app.post('/api/notes', (request, response) => {
     const body = request.body
 
@@ -78,32 +80,75 @@ app.post('/api/notes', (request, response) => {
     })
 })
 
+// get a useless hello world
 app.get('/', (req, res) => {
     res.send('<h1>Hello Worldi!</h1>')
 })
 
+// get all
 app.get('/api/notes', (req, res) => {
     Note.find({}).then(notes => {
         res.json(notes)
     })
 })
 
+// get one note
 app.get('/api/notes/:id', (request, response) => {
-    Note.findById(request.params.id).then(note => {
-        response.json(note)
-    })
+    Note.findById(request.params.id)
+        .then(note => {
+            if (note) {
+                response.json(note)
+            } else {
+                response.status(404).end()
+            }
+        })
+        .catch(error => next(error))
 })
 
-app.delete('/api/notes/:id', (request, response) => {
-    const id = Number(request.params.id)
-    notes = notes.filter(note => note.id !== id)
+// delete one note
+app.delete('/api/notes/:id', (request, response, next) => {
+    Note.findByIdAndDelete(req.params.id)
+        .then(result => {
+            res.status(204).end()
+        })
+        .catch(error => next(error))
+})
 
-    response.status(204).end()
+// update one note
+app.put('/api/notes/:id', (req, res, next) => {
+    const body = req.body
+
+    const note = {
+        content: body.content,
+        important: body.important,
+    }
+
+    // new:true -> handleri saa parametrikseen updatedNote muutoksen
+    // JALKEEN. Muuten saisi ennen muutosta...
+    Note.findByIdAndUpdate(req.params.id, note, {new: true})
+        .then(updatedNote => {
+            res.json(updatedNote)
+        })
+        .catch(error => next(error))
 })
 
 // Tama middleware tanne jotta se tulee kayttoon vasta jos HTTP-pyynto
 // ei mennyt millekaan routelle hoitoon
 app.use(unknownEndpoint)
+
+
+// virheiden kasittelija
+const errorHandler = (error, req, res, next) => {
+    console.error(error.message)
+
+    if (error.name === 'CastError') {
+        return res.status(400).send({error: 'malformatted id'})
+    }
+
+    next(error)
+}
+
+app.use(errorHandler)
 
 // Palvelin kayntiin
 const PORT = process.env.PORT
